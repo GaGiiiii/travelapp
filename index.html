@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STVARI ZA PUTOVANJE</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+        crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <style id="theme-style"></style>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .theme-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 999;
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .copy-btn,
+        .download-btn,
+        .upload-btn,
+        .delete-btn {
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-size: 1rem;
+            position: relative;
+            top: -2px;
+            left: -2px;
+        }
+
+        .download-btn {
+            left: -10px;
+        }
+
+        .upload-btn {
+            left: -25px;
+        }
+
+        .upload-btn,
+        .delete-btn {
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-size: 1rem;
+            position: relative;
+            top: -2px;
+            left: -16px;
+        }
+
+        .delete-btn {
+            left: -22px;
+        }
+
+        .shadow-box {
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .list-group-item {
+            cursor: pointer;
+            border: 1px solid rgba(0, 0, 0, 0.125);
+        }
+
+        #copy-popup {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            display: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+        }
+
+        #localstorage-info {
+            text-align: center;
+            font-size: 0.875rem;
+            margin: 20px auto;
+        }
+
+        .modal textarea {
+            width: 100%;
+            min-height: 150px;
+        }
+
+        ul {
+            max-height: 350px;
+            overflow-y: auto;
+        }
+
+        @media (max-width: 768px) {
+
+            .col-md-5,
+            .offset-md-2 {
+                max-width: 100% !important;
+                flex: 0 0 100%;
+            }
+
+            .card {
+                width: 100%;
+            }
+
+            .theme-btn {
+                top: 10px;
+                right: 10px;
+            }
+
+            ul {
+                max-height: 250px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <button class="btn btn-secondary theme-btn" onclick="switchTheme()">
+        <i class="fas fa-palette"></i>
+    </button>
+
+    <div class="container text-center">
+        <h1 class="header-title mt-4 shadow-box p-3 rounded">STVARI ZA PUTOVANJE</h1>
+    </div>
+
+    <div class="container my-4">
+        <div class="row">
+            <div class="col-md-5">
+                <div class="card shadow-box p-3 mb-4">
+                    <h5 class="section-title mb-3">PONESI
+                        <button class="copy-btn" onclick="copyList('left-list')"><i class="fas fa-copy"></i></button>
+                    </h5>
+                    <ul id="left-list" class="list-group"></ul>
+                </div>
+            </div>
+            <div class="col-md-5 offset-md-2">
+                <div class="card shadow-box p-3 mb-4">
+                    <h5 class="section-title mb-3">VRATI KUĆI
+                        <button class="copy-btn" onclick="copyList('right-list')"><i class="fas fa-copy"></i></button>
+                    </h5>
+                    <ul id="right-list" class="list-group"></ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col text-center">
+                <div class="card mx-auto shadow-box p-3" style="max-width: 720px;">
+                    <h5 class="section-title text-start mb-3">LISTA STVARI
+                        <button class="copy-btn" onclick="copyList('all-items')"><i class="fas fa-copy"></i></button>
+                        <button class="download-btn" onclick="downloadList('all-items')"><i
+                                class="fas fa-download"></i></button>
+                        <button class="upload-btn" onclick="openUploadModal()">
+                            <i class="fas fa-upload"></i>
+                        </button>
+                        <button class="delete-btn" onclick="openDeleteModal()">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </h5>
+                    <div class="input-group mb-3">
+                        <input id="new-item" type="text" class="form-control" placeholder="Dodaj stvar">
+                        <button id="add-item" class="btn btn-primary">Dodaj</button>
+                    </div>
+                    <ul id="all-items" class="list-group"></ul>
+                </div>
+            </div>
+        </div>
+
+        <div id="localstorage-info"></div>
+    </div>
+
+    <div id="copy-popup" class="shadow-box">LISTA USPEŠNO KOPIRANA <button class="btn-close float-end"
+            onclick="hidePopup()"></button></div>
+
+    <!-- Upload Modal -->
+    <div class="modal fade" id="uploadModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Unesi listu (jedna stvar po liniji)</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <textarea id="upload-textarea" class="form-control"></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" onclick="uploadItems()">Dodaj u listu</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Zatvori</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Modal -->
+    <div class="modal fade" id="deleteModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold text-dark">Sve stvari će biti obrisane i sve liste će se isprazniti.
+                        Da li si siguran?</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" onclick="deleteItems()">Obriši</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Odustani</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const themeStyle = document.getElementById('theme-style');
+        const uploadModal = new bootstrap.Modal(document.getElementById('uploadModal'));
+        const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+        const textarea = document.getElementById('upload-textarea');
+
+        const themes = [
+            {
+                css: `body { background: #2e3440; color: #d8dee9; }
+              .upload-btn { color: #d8dee9; }
+              .delete-btn { color: #d8dee9; }
+              .delete-btn:hover { color: #81a1c1; }
+              .upload-btn:hover { color: #81a1c1; }
+              .header-title { color: #81a1c1; text-shadow: 1px 1px 3px #000; }
+              .section-title { color: #88c0d0; }
+              .card { background-color: #3b4252; border: none; }
+              .list-group-item { background-color: #434c5e; color: #d8dee9; }
+              .list-group-item:hover { background-color: #4c566a; }
+              .btn-primary { background-color: #5e81ac; border: none; }
+              .btn-primary:hover { background-color: #81a1c1; }
+              .btn-secondary { background-color: #4c566a; color: #fff; border: none; }
+              .copy-btn, .download-btn { color: #d8dee9; }
+              .copy-btn:hover, .download-btn:hover { color: #81a1c1; }
+              #localstorage-info { color: #d8dee9; }
+              #copy-popup { background-color: #4c566a; color: #d8dee9; }`
+            },
+            {
+                css: `body { background: #282c34; color: #abb2bf; }
+                .upload-btn { color: #abb2bf; }
+                .delete-btn { color: #abb2bf; }
+                .delete-btn:hover { color: #61afef; }
+                .upload-btn:hover { color: #61afef; }
+              .header-title { color: #61afef; text-shadow: 1px 1px 3px #000; }
+              .section-title { color: #e06c75; }
+              .card { background-color: #3a3f4b; border: none; }
+              .list-group-item { background-color: #4b5263; color: #abb2bf; }
+              .list-group-item:hover { background-color: #5c6370; }
+              .btn-primary { background-color: #98c379; border: none; }
+              .btn-primary:hover { background-color: #8ac36f; }
+              .btn-secondary { background-color: #5c6370; color: #fff; border: none; }
+              .copy-btn, .download-btn { color: #abb2bf; }
+              .copy-btn:hover, .download-btn:hover { color: #61afef; }
+              #localstorage-info { color: #abb2bf; }
+              #copy-popup { background-color: #5c6370; color: #abb2bf; }`
+            },
+            {
+                css: `body { background: #fff; color: #222; }
+                .upload-btn { color: #0d47a1; }
+                .delete-btn { color: #0d47a1; }
+                .delete-btn:hover { color: #1976d2; }
+                .upload-btn:hover { color: #1976d2; }
+              .header-title { color: #0d47a1; text-shadow: 1px 1px 2px #fff; }
+              .section-title { color: #1565c0; }
+              .list-group-item:hover { background-color: #e0f7fa; }
+              .btn-primary { background-color: #1976d2; border: none; }
+              .btn-primary:hover { background-color: #004ba0; }
+              .copy-btn, .download-btn { color: #0d47a1; }
+              .copy-btn:hover, .download-btn:hover { color: #1976d2; }
+              #localstorage-info { color: #222; }
+              #copy-popup { background-color: #0d47a1; color: #fff; }`
+            },
+            {
+                css: `body { background: #fffaf0; color: #4d2e1f; }
+                .upload-btn { color: #6b4226; }
+                .delete-btn { color: #6b4226; }
+                .delete-btn:hover { color: #8b5e3c; }
+                .upload-btn:hover { color: #8b5e3c; }
+              .header-title { color: #6b4226; text-shadow: 1px 1px 2px #fff0e0; }
+              .section-title { color: #8b5e3c; }
+              .card { background-color: #fdf6ec; border: none; }
+              .list-group-item { background-color: #fbead1; color: #4d2e1f; }
+              .list-group-item:hover { background-color: #f2dcc2; }
+              .btn-primary { background-color: #d9a066; border: none; }
+              .btn-primary:hover { background-color: #c6894f; }
+              .btn-secondary { background-color: #b08968; color: #fff; border: none; }
+              .copy-btn, .download-btn { color: #6b4226; }
+              .copy-btn:hover, .download-btn:hover { color: #8b5e3c; }
+              #localstorage-info { color: #4d2e1f; }
+              #copy-popup { background-color: #b08968; color: #fff; }`
+            }
+        ];
+
+        function switchTheme(init = false) {
+            let currentTheme = localStorage.getItem('currentTheme') || 0;
+
+            if (!init) {
+                currentTheme = Number(currentTheme) + 1;
+            }
+
+            if (currentTheme >= themes.length) {
+                currentTheme = 0;
+            }
+
+            themeStyle.innerHTML = themes[currentTheme].css;
+            localStorage.setItem('currentTheme', currentTheme);
+        }
+
+        switchTheme(true);
+
+        const leftList = document.getElementById('left-list');
+        const rightList = document.getElementById('right-list');
+        const allItemsList = document.getElementById('all-items');
+        const newItemInput = document.getElementById('new-item');
+        const addItemBtn = document.getElementById('add-item');
+        const localStorageInfo = document.getElementById('localstorage-info');
+
+        const defaultItems = [
+            "Dokumenta (pasoš, lična karta, vozačka, saobraćajna, platne kartice)",
+            "Dokumenta dodatna (zeleni karton, žuti karton, međunarodna vozačka, dozvola za upravljanje tuđim vozilom)",
+
+            "Pare sitne",
+            "Naočare",
+            "Sveska",
+
+            "Punjač za telefon",
+            "Power bank",
+            "Slušalice",
+
+            "Maramice (obične, vlažne)",
+            "Voda",
+            "Grickalice",
+
+            "Kozmetika (parfem, dezodorans, brijač, šampon, četkica, pasta)",
+            "Lekovi",
+            "Autan",
+
+
+            "Čarape, dojni veš",
+            "Šorts, bermude",
+            "Majice kratki rukav",
+            "Trenerka, duks",
+            "Jakna",
+            "Patike, cipele",
+            "Kapa, šal",
+
+            "Kupaći",
+            "Peškir",
+            "Papuče",
+            "Krema za sunčanje",
+
+            "Pidžama",
+        ];
+
+
+        let items = JSON.parse(localStorage.getItem('items') || '[]');
+
+        if (items.length === 0) {
+            items = defaultItems;
+            localStorage.setItem('items', JSON.stringify(items));
+        }
+
+        let rightItems = JSON.parse(localStorage.getItem('rightItems') || '[]');
+
+        function renderLists() {
+            leftList.innerHTML = '';
+            rightList.innerHTML = '';
+            allItemsList.innerHTML = '';
+
+            items.forEach(item => {
+                const leftLi = document.createElement('li');
+                leftLi.textContent = item;
+                leftLi.className = 'list-group-item';
+                if (rightItems.includes(item)) leftLi.classList.add('text-decoration-line-through', 'text-muted');
+                leftLi.onclick = () => {
+                    if (!rightItems.includes(item)) {
+                        rightItems.push(item);
+                        localStorage.setItem('rightItems', JSON.stringify(rightItems));
+                        renderLists();
+                    }
+                };
+                leftList.appendChild(leftLi);
+
+                if (rightItems.includes(item)) {
+                    const rightLi = document.createElement('li');
+                    rightLi.className = 'list-group-item d-flex justify-content-between align-items-center';
+                    const span = document.createElement('span');
+                    span.textContent = item;
+                    span.onclick = () => {
+                        rightItems = rightItems.filter(i => i !== item);
+                        localStorage.setItem('rightItems', JSON.stringify(rightItems));
+                        renderLists();
+                    };
+                    const removeBtn = document.createElement('span');
+                    removeBtn.className = 'badge bg-danger rounded-pill';
+                    removeBtn.textContent = 'X';
+                    removeBtn.onclick = () => {
+                        rightItems = rightItems.filter(i => i !== item);
+                        localStorage.setItem('rightItems', JSON.stringify(rightItems));
+                        renderLists();
+                    };
+                    rightLi.append(span, removeBtn);
+                    rightList.appendChild(rightLi);
+                }
+
+                const allLi = document.createElement('li');
+                allLi.className = 'list-group-item d-flex justify-content-between align-items-center text-start';
+                const itemText = document.createElement('span');
+                itemText.textContent = item;
+                const delBtn = document.createElement('span');
+                delBtn.className = 'badge bg-danger rounded-pill';
+                delBtn.textContent = 'X';
+                delBtn.onclick = () => {
+                    items = items.filter(i => i !== item);
+                    rightItems = rightItems.filter(i => i !== item);
+                    localStorage.setItem('items', JSON.stringify(items));
+                    localStorage.setItem('rightItems', JSON.stringify(rightItems));
+                    renderLists();
+                };
+                allLi.append(itemText, delBtn);
+                allItemsList.appendChild(allLi);
+            });
+            updateLocalStorageInfo();
+        }
+
+        function openUploadModal() {
+            textarea.value = '';
+            uploadModal.show();
+        }
+
+        function openDeleteModal() {
+            textarea.value = '';
+            deleteModal.show();
+        }
+
+        function uploadItems() {
+            const lines = textarea.value.split('\n').map(line => line.trim()).filter(Boolean);
+            lines.forEach(line => {
+                if (!items.includes(line)) items.push(line);
+            });
+            localStorage.setItem('items', JSON.stringify(items));
+            renderLists();
+            uploadModal.hide();
+        }
+
+        function deleteItems() {
+            items = [];
+            rightItems = [];
+            localStorage.setItem('items', JSON.stringify([]));
+            localStorage.setItem('rightItems', JSON.stringify([]));
+            renderLists();
+            deleteModal.hide();
+        }
+
+        addItemBtn.onclick = () => {
+            const value = newItemInput.value.trim();
+            if (value && !items.includes(value)) {
+                items.push(value);
+                localStorage.setItem('items', JSON.stringify(items));
+                newItemInput.value = '';
+                renderLists();
+            }
+        };
+
+        function extractText(listId) {
+            const list = document.getElementById(listId);
+            return Array.from(list.children).map(li => li.firstChild.textContent.trim()).filter(Boolean);
+        }
+
+        function copyList(listId) {
+            const text = extractText(listId).join('\n');
+            navigator.clipboard.writeText(text).then(() => showPopup());
+        }
+
+        function downloadList(listId) {
+            const text = extractText(listId).join('\n');
+            const blob = new Blob([text], { type: 'text/plain' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'lista_stvari.txt';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        function showPopup() {
+            const popup = document.getElementById('copy-popup');
+            popup.style.display = 'block';
+            clearTimeout(popup.timer);
+            popup.timer = setTimeout(() => { popup.style.display = 'none'; }, 2000);
+        }
+
+        function hidePopup() {
+            document.getElementById('copy-popup').style.display = 'none';
+        }
+
+        function updateLocalStorageInfo() {
+            const usedBytes = new Blob(Object.values(localStorage)).size;
+            const usedKB = (usedBytes / 1024).toFixed(2);
+            localStorageInfo.innerHTML = `<strong>Storage:</strong> ${usedKB} KB / 5 MB`;
+        }
+
+        renderLists();
+    </script>
+</body>
+
+</html>
