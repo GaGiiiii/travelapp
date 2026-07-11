@@ -37,32 +37,68 @@
             background: none;
             cursor: pointer;
             font-size: 1rem;
-            position: relative;
-            top: -2px;
-            left: -2px;
+            padding: 0;
+            margin-left: 10px;
+            line-height: 1;
+            vertical-align: middle;
         }
 
-        .download-btn {
-            left: -10px;
-        }
-
-        .upload-btn {
-            left: -25px;
-        }
-
-        .upload-btn,
-        .delete-btn {
+        .list-tab {
             border: none;
-            background: none;
+            border-radius: 999px;
+            padding: 6px 18px;
+            font-weight: 600;
+            font-size: 0.9rem;
             cursor: pointer;
-            font-size: 1rem;
-            position: relative;
-            top: -2px;
-            left: -16px;
+            transition: filter 0.15s, transform 0.15s;
         }
 
-        .delete-btn {
-            left: -22px;
+        .list-tab:hover {
+            filter: brightness(1.08);
+        }
+
+        .list-tab.active {
+            transform: translateY(-1px);
+            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.18);
+        }
+
+        .list-add-btn,
+        .list-manage-btn {
+            border: none;
+            border-radius: 999px;
+            width: 38px;
+            height: 38px;
+            padding: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+
+        #sync-btn {
+            position: relative;
+        }
+
+        #sync-btn.sync-active::after {
+            content: '';
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: #2ecc71;
+            border: 1px solid rgba(255, 255, 255, 0.7);
+        }
+
+        .sort-label {
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+
+        .sort-select {
+            font-weight: 600;
         }
 
         .shadow-box {
@@ -141,6 +177,20 @@
     </div>
 
     <div class="container my-4">
+        <div class="card shadow-box p-3 mb-4">
+            <div class="d-flex align-items-center flex-wrap gap-2">
+                <div id="list-tabs" class="d-flex flex-wrap gap-2 flex-grow-1"></div>
+                <button class="btn list-manage-btn" onclick="openRenameListModal()" title="Preimenuj listu">
+                    <i class="fas fa-pen"></i>
+                </button>
+                <button class="btn list-manage-btn" onclick="openDeleteListModal()" title="Obriši listu">
+                    <i class="fas fa-folder-minus"></i>
+                </button>
+                <button class="btn list-manage-btn" id="sync-btn" onclick="openSyncModal()" title="Sinhronizacija uređaja">
+                    <i class="fas fa-cloud"></i>
+                </button>
+            </div>
+        </div>
         <div class="row">
             <div class="col-md-5">
                 <div class="card shadow-box p-3 mb-4">
@@ -163,20 +213,34 @@
         <div class="row mt-4">
             <div class="col text-center">
                 <div class="card mx-auto shadow-box p-3" style="max-width: 720px;">
-                    <h5 class="section-title text-start mb-3">LISTA STVARI
-                        <button class="copy-btn" onclick="copyList('all-items')"><i class="fas fa-copy"></i></button>
-                        <button class="download-btn" onclick="downloadList('all-items')"><i
+                    <h5 class="section-title text-start mb-3">LISTA STVARI (<span id="active-list-name"></span>)
+                        <button class="copy-btn" onclick="copyList('all-items')" title="Kopiraj listu"><i class="fas fa-copy"></i></button>
+                        <button class="download-btn" onclick="downloadCurrentList()" title="Preuzmi ovu listu (.txt)"><i
                                 class="fas fa-download"></i></button>
-                        <button class="upload-btn" onclick="openUploadModal()">
+                        <button class="download-btn" onclick="downloadAllLists()" title="Preuzmi sve liste (.json)"><i
+                                class="fas fa-file-zipper"></i></button>
+                        <button class="upload-btn" onclick="openUploadModal()" title="Dodaj stvari iz teksta">
                             <i class="fas fa-upload"></i>
                         </button>
-                        <button class="delete-btn" onclick="openDeleteModal()">
+                        <button class="upload-btn" onclick="document.getElementById('restore-input').click()" title="Učitaj backup (.json)">
+                            <i class="fas fa-file-import"></i>
+                        </button>
+                        <button class="delete-btn" onclick="openDeleteModal()" title="Isprazni ovu listu">
                             <i class="fas fa-trash"></i>
                         </button>
+                        <input id="restore-input" type="file" accept="application/json,.json" class="d-none" onchange="restoreBackup(event)">
                     </h5>
                     <div class="input-group mb-3">
                         <input id="new-item" type="text" class="form-control" placeholder="Dodaj stvar">
                         <button id="add-item" class="btn btn-primary">Dodaj</button>
+                    </div>
+                    <div class="d-flex justify-content-end align-items-center mb-2">
+                        <label for="sort-select" class="sort-label me-2">Sortiraj:</label>
+                        <select id="sort-select" class="sort-select form-select form-select-sm" style="width:auto;">
+                            <option value="default">Podrazumevano (datum)</option>
+                            <option value="az">A-Z</option>
+                            <option value="priority">Prioritet</option>
+                        </select>
                     </div>
                     <ul id="all-items" class="list-group"></ul>
                 </div>
@@ -225,13 +289,144 @@
         </div>
     </div>
 
+    <!-- Delete Single Item Modal -->
+    <div class="modal fade" id="deleteItemModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold text-dark">Da li sigurno želiš da trajno obrišeš ovu stvar?</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p id="delete-item-name" class="fw-bold mb-0"></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-danger" onclick="confirmDeleteItem()">Obriši</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Odustani</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Priority Picker Modal -->
+    <div class="modal fade" id="priorityModal" tabindex="-1">
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold text-dark">Izaberi prioritet</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body d-flex justify-content-center gap-2">
+                    <button type="button" class="btn btn-danger" onclick="setPriority('P1')">P1</button>
+                    <button type="button" class="btn btn-warning text-dark" onclick="setPriority('P2')">P2</button>
+                    <button type="button" class="btn btn-secondary" onclick="setPriority('P3')">P3</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- List Name Modal (new / rename) -->
+    <div class="modal fade" id="listNameModal" tabindex="-1">
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold text-dark" id="list-name-title">Nova lista</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input id="list-name-input" type="text" class="form-control" placeholder="Naziv liste">
+                    <div id="list-name-error" class="text-danger small mt-2 d-none">Lista sa tim nazivom već postoji.</div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" onclick="saveListName()">Sačuvaj</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Odustani</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete List Modal -->
+    <div class="modal fade" id="deleteListModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold text-dark">Cela lista i sve njene stvari će biti obrisane. Da li si
+                        siguran?</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p id="delete-list-name" class="fw-bold mb-0"></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-danger" onclick="confirmDeleteList()">Obriši</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Odustani</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sync Modal -->
+    <div class="modal fade" id="syncModal" tabindex="-1">
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold text-dark">Sinhronizacija uređaja</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="sync-disconnected">
+                        <p class="small text-dark mb-3">Poveži uređaje da bi liste bile iste na svim uređajima.</p>
+                        <button class="btn btn-primary w-100 mb-3" onclick="cloudCreateCode()">Napravi kod za
+                            sinhronizaciju</button>
+                        <div class="text-center small text-muted mb-2">ili unesi postojeći kod</div>
+                        <div class="input-group">
+                            <input id="sync-code-input" class="form-control text-uppercase" placeholder="Unesi kod"
+                                autocomplete="off">
+                            <button class="btn btn-secondary" onclick="cloudConnect()">Poveži</button>
+                        </div>
+                        <div id="sync-error" class="text-danger small mt-2 d-none"></div>
+                    </div>
+                    <div id="sync-connected" class="d-none text-center">
+                        <p class="small text-dark mb-1">Povezano. Kod za druge uređaje:</p>
+                        <h3 id="sync-code-display" class="fw-bold text-dark" style="letter-spacing:2px;"></h3>
+                        <button id="copy-code-btn" class="btn btn-secondary btn-sm mb-3" onclick="copySyncCode()">Kopiraj
+                            kod</button>
+                        <div class="small text-muted mb-3">Unesi ovaj kod na drugom uređaju da bi se povezao.</div>
+                        <button class="btn btn-danger btn-sm w-100" onclick="cloudDisconnect()">Prekini
+                            sinhronizaciju</button>
+                    </div>
+                    <div id="sync-unavailable" class="d-none small text-muted">
+                        Sinhronizacija nije podešena. Firebase konfiguracija mora biti dodata u kod (pogledaj uputstvo).
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         const themeStyle = document.getElementById('theme-style');
         const uploadModalElement = document.getElementById('uploadModal');
         const deleteModalElement = document.getElementById('deleteModal');
+        const deleteItemModalElement = document.getElementById('deleteItemModal');
+        const priorityModalElement = document.getElementById('priorityModal');
+        const listNameModalElement = document.getElementById('listNameModal');
+        const deleteListModalElement = document.getElementById('deleteListModal');
+        const syncModalElement = document.getElementById('syncModal');
+        const syncModal = new bootstrap.Modal(syncModalElement);
         const uploadModal = new bootstrap.Modal(uploadModalElement);
         const deleteModal = new bootstrap.Modal(deleteModalElement);
+        const deleteItemModal = new bootstrap.Modal(deleteItemModalElement);
+        const priorityModal = new bootstrap.Modal(priorityModalElement);
+        const listNameModal = new bootstrap.Modal(listNameModalElement);
+        const deleteListModal = new bootstrap.Modal(deleteListModalElement);
+        const deleteItemNameEl = document.getElementById('delete-item-name');
+        const deleteListNameEl = document.getElementById('delete-list-name');
+        const listNameTitle = document.getElementById('list-name-title');
+        const listNameInput = document.getElementById('list-name-input');
+        const listNameError = document.getElementById('list-name-error');
+        const listTabs = document.getElementById('list-tabs');
+        const activeListNameEl = document.getElementById('active-list-name');
         const textarea = document.getElementById('upload-textarea');
 
         const themes = [
@@ -252,6 +447,12 @@
               .copy-btn, .download-btn { color: #d8dee9; }
               .copy-btn:hover, .download-btn:hover { color: #81a1c1; }
               #localstorage-info { color: #d8dee9; }
+              .sort-label { color: #88c0d0; }
+              .sort-select { background-color: #434c5e; color: #d8dee9; border-color: #4c566a; background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23d8dee9' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e"); }
+              .list-tab { background-color: #434c5e; color: #d8dee9; }
+              .list-tab.active { background-color: #5e81ac; color: #fff; }
+              .list-add-btn, .list-manage-btn { background-color: #4c566a; color: #d8dee9; }
+              .list-add-btn:hover, .list-manage-btn:hover { background-color: #5e81ac; color: #fff; }
               #copy-popup { background-color: #4c566a; color: #d8dee9; }`
             },
             {
@@ -271,6 +472,12 @@
               .copy-btn, .download-btn { color: #abb2bf; }
               .copy-btn:hover, .download-btn:hover { color: #61afef; }
               #localstorage-info { color: #abb2bf; }
+              .sort-label { color: #e06c75; }
+              .sort-select { background-color: #4b5263; color: #abb2bf; border-color: #5c6370; background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23abb2bf' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e"); }
+              .list-tab { background-color: #4b5263; color: #abb2bf; }
+              .list-tab.active { background-color: #98c379; color: #282c34; }
+              .list-add-btn, .list-manage-btn { background-color: #5c6370; color: #abb2bf; }
+              .list-add-btn:hover, .list-manage-btn:hover { background-color: #98c379; color: #282c34; }
               #copy-popup { background-color: #5c6370; color: #abb2bf; }`
             },
             {
@@ -287,6 +494,11 @@
               .copy-btn, .download-btn { color: #0d47a1; }
               .copy-btn:hover, .download-btn:hover { color: #1976d2; }
               #localstorage-info { color: #222; }
+              .sort-label { color: #1565c0; }
+              .list-tab { background-color: #e9ecef; color: #222; }
+              .list-tab.active { background-color: #1976d2; color: #fff; }
+              .list-add-btn, .list-manage-btn { background-color: #e0e0e0; color: #222; }
+              .list-add-btn:hover, .list-manage-btn:hover { background-color: #1976d2; color: #fff; }
               #copy-popup { background-color: #0d47a1; color: #fff; }`
             },
             {
@@ -306,6 +518,12 @@
               .copy-btn, .download-btn { color: #6b4226; }
               .copy-btn:hover, .download-btn:hover { color: #8b5e3c; }
               #localstorage-info { color: #4d2e1f; }
+              .sort-label { color: #8b5e3c; }
+              .sort-select { background-color: #fbead1; color: #4d2e1f; border-color: #d9a066; }
+              .list-tab { background-color: #fbead1; color: #4d2e1f; }
+              .list-tab.active { background-color: #8b5e3c; color: #fff; }
+              .list-add-btn, .list-manage-btn { background-color: #b08968; color: #fff; }
+              .list-add-btn:hover, .list-manage-btn:hover { background-color: #8b5e3c; color: #fff; }
               #copy-popup { background-color: #b08968; color: #fff; }`
             }
         ];
@@ -333,6 +551,7 @@
         const newItemInput = document.getElementById('new-item');
         const addItemBtn = document.getElementById('add-item');
         const localStorageInfo = document.getElementById('localstorage-info');
+        const sortSelect = document.getElementById('sort-select');
 
         const defaultItems = [
             "Dokumenta (pasoš, lična karta, vozačka, saobraćajna, platne kartice)",
@@ -367,50 +586,166 @@
             "Pidžama",
         ];
 
-        let items = JSON.parse(localStorage.getItem('items') || '[]');
+        const DEFAULT_PRIORITY = 'P2';
+        const PRIORITY_ORDER = ['P1', 'P2', 'P3'];
 
-        if (items.length === 0) {
-            items = defaultItems;
-            localStorage.setItem('items', JSON.stringify(items));
+        // Normalize any stored value (legacy plain strings or {name, priority}) into an object.
+        function normalizeItem(item) {
+            if (typeof item === 'string') return { name: item, priority: DEFAULT_PRIORITY };
+            return {
+                name: item.name,
+                priority: PRIORITY_ORDER.includes(item.priority) ? item.priority : DEFAULT_PRIORITY
+            };
         }
 
-        let rightItems = JSON.parse(localStorage.getItem('rightItems') || '[]');
+        const PRESET_LISTS = ['Bazen', 'Teretana', 'Akvapark', 'More', 'Rafting'];
+
+        function normalizeList(l) {
+            return {
+                name: l.name,
+                items: Array.isArray(l.items) ? l.items.map(normalizeItem) : [],
+                rightItems: Array.isArray(l.rightItems) ? l.rightItems : []
+            };
+        }
+
+        let lists;
+        const storedLists = localStorage.getItem('lists');
+        if (storedLists) {
+            lists = JSON.parse(storedLists).map(normalizeList);
+        } else {
+            // Migrate legacy single-list storage into the new multi-list model.
+            const legacyItems = JSON.parse(localStorage.getItem('items') || '[]').map(normalizeItem);
+            const legacyRight = JSON.parse(localStorage.getItem('rightItems') || '[]');
+            const defaultListItems = legacyItems.length
+                ? legacyItems
+                : defaultItems.map(name => ({ name, priority: DEFAULT_PRIORITY }));
+            lists = [{ name: 'Podrazumevano', items: defaultListItems, rightItems: legacyRight }];
+            PRESET_LISTS.forEach(name => lists.push({ name, items: [], rightItems: [] }));
+            localStorage.removeItem('items');
+            localStorage.removeItem('rightItems');
+        }
+        if (lists.length === 0) {
+            lists = [{ name: 'Podrazumevano', items: [], rightItems: [] }];
+        }
+
+        let activeListName = localStorage.getItem('activeList');
+        if (!lists.some(l => l.name === activeListName)) activeListName = lists[0].name;
+
+        function getActiveList() {
+            return lists.find(l => l.name === activeListName) || lists[0];
+        }
+
+        function persistLocal() {
+            localStorage.setItem('lists', JSON.stringify(lists));
+            localStorage.setItem('activeList', activeListName);
+        }
+
+        function saveLists() {
+            persistLocal();
+            window.__cloud && window.__cloud.push(lists);
+        }
+
+        // --- Bridge for the Firebase sync module (loaded separately below) ---
+        window.__getLocalLists = () => lists;
+
+        // Called when a remote change arrives; updates local state WITHOUT pushing back.
+        window.__applyRemoteLists = (remoteLists) => {
+            if (!Array.isArray(remoteLists)) return;
+            lists = remoteLists.map(normalizeList);
+            if (lists.length === 0) lists = [{ name: 'Podrazumevano', items: [], rightItems: [] }];
+            if (!lists.some(l => l.name === activeListName)) activeListName = lists[0].name;
+            persistLocal();
+            renderLists();
+        };
+
+        saveLists();
+
+        let sortMode = localStorage.getItem('sortMode') || 'default';
+        sortSelect.value = sortMode;
+        sortSelect.onchange = () => {
+            sortMode = sortSelect.value;
+            localStorage.setItem('sortMode', sortMode);
+            renderLists();
+        };
+
+        function getDisplayItems() {
+            const copy = getActiveList().items.slice();
+            if (sortMode === 'az') {
+                copy.sort((a, b) => a.name.localeCompare(b.name));
+            } else if (sortMode === 'priority') {
+                copy.sort((a, b) => PRIORITY_ORDER.indexOf(a.priority) - PRIORITY_ORDER.indexOf(b.priority));
+            }
+            return copy;
+        }
+
+        function renderTabs() {
+            listTabs.innerHTML = '';
+            lists.forEach(list => {
+                const btn = document.createElement('button');
+                btn.className = 'list-tab' + (list.name === activeListName ? ' active' : '');
+                btn.textContent = list.name;
+                btn.onclick = () => switchList(list.name);
+                listTabs.appendChild(btn);
+            });
+            const addBtn = document.createElement('button');
+            addBtn.className = 'list-add-btn';
+            addBtn.title = 'Nova lista';
+            addBtn.innerHTML = '<i class="fas fa-plus"></i>';
+            addBtn.onclick = openNewListModal;
+            listTabs.appendChild(addBtn);
+        }
+
+        function switchList(name) {
+            activeListName = name;
+            saveLists();
+            renderLists();
+        }
+
+        function priorityBadgeClass(priority) {
+            if (priority === 'P1') return 'bg-danger';
+            if (priority === 'P2') return 'bg-warning text-dark';
+            return 'bg-secondary';
+        }
 
         function renderLists() {
+            renderTabs();
+            const active = getActiveList();
+            activeListNameEl.textContent = active.name;
+
             leftList.innerHTML = '';
             rightList.innerHTML = '';
             allItemsList.innerHTML = '';
 
-            items.forEach(item => {
+            getDisplayItems().forEach(item => {
                 const leftLi = document.createElement('li');
-                leftLi.textContent = item;
+                leftLi.textContent = item.name;
                 leftLi.className = 'list-group-item';
-                if (rightItems.includes(item)) leftLi.classList.add('text-decoration-line-through', 'text-muted');
+                if (active.rightItems.includes(item.name)) leftLi.classList.add('text-decoration-line-through', 'text-muted');
                 leftLi.onclick = () => {
-                    if (!rightItems.includes(item)) {
-                        rightItems.push(item);
-                        localStorage.setItem('rightItems', JSON.stringify(rightItems));
+                    if (!active.rightItems.includes(item.name)) {
+                        active.rightItems.push(item.name);
+                        saveLists();
                         renderLists();
                     }
                 };
                 leftList.appendChild(leftLi);
 
-                if (rightItems.includes(item)) {
+                if (active.rightItems.includes(item.name)) {
                     const rightLi = document.createElement('li');
                     rightLi.className = 'list-group-item d-flex justify-content-between align-items-center';
                     const span = document.createElement('span');
-                    span.textContent = item;
+                    span.textContent = item.name;
                     span.onclick = () => {
-                        rightItems = rightItems.filter(i => i !== item);
-                        localStorage.setItem('rightItems', JSON.stringify(rightItems));
+                        active.rightItems = active.rightItems.filter(i => i !== item.name);
+                        saveLists();
                         renderLists();
                     };
                     const removeBtn = document.createElement('span');
                     removeBtn.className = 'badge bg-danger rounded-pill';
                     removeBtn.textContent = 'X';
                     removeBtn.onclick = () => {
-                        rightItems = rightItems.filter(i => i !== item);
-                        localStorage.setItem('rightItems', JSON.stringify(rightItems));
+                        active.rightItems = active.rightItems.filter(i => i !== item.name);
+                        saveLists();
                         renderLists();
                     };
                     rightLi.append(span, removeBtn);
@@ -420,18 +755,35 @@
                 const allLi = document.createElement('li');
                 allLi.className = 'list-group-item d-flex justify-content-between align-items-center text-start';
                 const itemText = document.createElement('span');
-                itemText.textContent = item;
+                itemText.textContent = item.name;
+
+                const controls = document.createElement('span');
+                controls.className = 'd-flex align-items-center gap-2';
+
+                const priorityBadge = document.createElement('span');
+                priorityBadge.className = `badge rounded-pill ${priorityBadgeClass(item.priority)}`;
+                priorityBadge.style.cursor = 'pointer';
+                priorityBadge.title = 'Klikni da izabereš prioritet';
+                priorityBadge.textContent = item.priority;
+                priorityBadge.onclick = (e) => {
+                    e.stopPropagation();
+                    pendingPriorityName = item.name;
+                    priorityModal.show();
+                };
+
                 const delBtn = document.createElement('span');
                 delBtn.className = 'badge bg-danger rounded-pill';
+                delBtn.style.cursor = 'pointer';
                 delBtn.textContent = 'X';
-                delBtn.onclick = () => {
-                    items = items.filter(i => i !== item);
-                    rightItems = rightItems.filter(i => i !== item);
-                    localStorage.setItem('items', JSON.stringify(items));
-                    localStorage.setItem('rightItems', JSON.stringify(rightItems));
-                    renderLists();
+                delBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    pendingDeleteName = item.name;
+                    deleteItemNameEl.textContent = item.name;
+                    deleteItemModal.show();
                 };
-                allLi.append(itemText, delBtn);
+
+                controls.append(priorityBadge, delBtn);
+                allLi.append(itemText, controls);
                 allItemsList.appendChild(allLi);
             });
             updateLocalStorageInfo();
@@ -447,7 +799,7 @@
             deleteModal.show();
         }
 
-        const modals = [uploadModalElement, deleteModalElement];
+        const modals = [uploadModalElement, deleteModalElement, deleteItemModalElement, priorityModalElement, listNameModalElement, deleteListModalElement, syncModalElement];
 
         modals.forEach(modal => {
             modal.addEventListener('show.bs.modal', () => {
@@ -458,34 +810,202 @@
             });
         });
 
+        let pendingDeleteName = null;
+        let pendingPriorityName = null;
+
+        function setPriority(priority) {
+            if (pendingPriorityName !== null) {
+                const target = getActiveList().items.find(i => i.name === pendingPriorityName);
+                if (target) {
+                    target.priority = priority;
+                    saveLists();
+                    renderLists();
+                }
+                pendingPriorityName = null;
+            }
+            priorityModal.hide();
+        }
+
+        function confirmDeleteItem() {
+            if (pendingDeleteName !== null) {
+                const active = getActiveList();
+                active.items = active.items.filter(i => i.name !== pendingDeleteName);
+                active.rightItems = active.rightItems.filter(i => i !== pendingDeleteName);
+                saveLists();
+                pendingDeleteName = null;
+                renderLists();
+            }
+            deleteItemModal.hide();
+        }
+
         function uploadItems() {
+            const active = getActiveList();
             const lines = textarea.value.split('\n').map(line => line.trim()).filter(Boolean);
             lines.forEach(line => {
-                if (!items.includes(line)) items.push(line);
+                if (!active.items.some(i => i.name === line)) active.items.push({ name: line, priority: DEFAULT_PRIORITY });
             });
-            localStorage.setItem('items', JSON.stringify(items));
+            saveLists();
             renderLists();
             uploadModal.hide();
         }
 
         function deleteItems() {
-            items = [];
-            rightItems = [];
-            localStorage.setItem('items', JSON.stringify([]));
-            localStorage.setItem('rightItems', JSON.stringify([]));
+            const active = getActiveList();
+            active.items = [];
+            active.rightItems = [];
+            saveLists();
             renderLists();
             deleteModal.hide();
         }
 
         addItemBtn.onclick = () => {
+            const active = getActiveList();
             const value = newItemInput.value.trim();
-            if (value && !items.includes(value)) {
-                items.push(value);
-                localStorage.setItem('items', JSON.stringify(items));
+            if (value && !active.items.some(i => i.name === value)) {
+                active.items.push({ name: value, priority: DEFAULT_PRIORITY });
+                saveLists();
                 newItemInput.value = '';
                 renderLists();
             }
         };
+
+        // ----- List management (new / rename / delete) -----
+        let listNameMode = null; // 'new' | 'rename'
+        let pendingDeleteListName = null;
+
+        function openNewListModal() {
+            listNameMode = 'new';
+            listNameTitle.textContent = 'Nova lista';
+            listNameInput.value = '';
+            listNameError.classList.add('d-none');
+            listNameModal.show();
+        }
+
+        function openRenameListModal() {
+            listNameMode = 'rename';
+            listNameTitle.textContent = 'Preimenuj listu';
+            listNameInput.value = activeListName;
+            listNameError.classList.add('d-none');
+            listNameModal.show();
+        }
+
+        function saveListName() {
+            const name = listNameInput.value.trim();
+            if (!name) return;
+            const duplicate = lists.some(l => l.name === name && !(listNameMode === 'rename' && l.name === activeListName));
+            if (duplicate) {
+                listNameError.classList.remove('d-none');
+                return;
+            }
+            if (listNameMode === 'new') {
+                lists.push({ name, items: [], rightItems: [] });
+                activeListName = name;
+            } else if (listNameMode === 'rename') {
+                getActiveList().name = name;
+                activeListName = name;
+            }
+            saveLists();
+            renderLists();
+            listNameModal.hide();
+        }
+
+        function openDeleteListModal() {
+            if (lists.length <= 1) return; // keep at least one list
+            pendingDeleteListName = activeListName;
+            deleteListNameEl.textContent = activeListName;
+            deleteListModal.show();
+        }
+
+        function confirmDeleteList() {
+            if (pendingDeleteListName !== null) {
+                lists = lists.filter(l => l.name !== pendingDeleteListName);
+                if (!lists.some(l => l.name === activeListName)) activeListName = lists[0].name;
+                pendingDeleteListName = null;
+                saveLists();
+                renderLists();
+            }
+            deleteListModal.hide();
+        }
+
+        // ----- Device sync (Firebase, sync-code model) -----
+        function updateSyncButton(connected) {
+            const btn = document.getElementById('sync-btn');
+            if (btn) btn.classList.toggle('sync-active', !!connected);
+        }
+
+        function updateSyncUI(st) {
+            const disc = document.getElementById('sync-disconnected');
+            const conn = document.getElementById('sync-connected');
+            const unavail = document.getElementById('sync-unavailable');
+            disc.classList.add('d-none');
+            conn.classList.add('d-none');
+            unavail.classList.add('d-none');
+
+            if (!st || !st.available) {
+                unavail.classList.remove('d-none');
+                updateSyncButton(false);
+                return;
+            }
+            if (st.connected) {
+                document.getElementById('sync-code-display').textContent = st.code;
+                conn.classList.remove('d-none');
+                updateSyncButton(true);
+            } else {
+                disc.classList.remove('d-none');
+                updateSyncButton(false);
+            }
+        }
+        // The sync module calls this whenever connection status changes.
+        window.__onSyncStatus = updateSyncUI;
+
+        function currentSyncStatus() {
+            return (window.__cloud && window.__cloud.getStatus()) || { available: false };
+        }
+
+        function openSyncModal() {
+            document.getElementById('sync-error').classList.add('d-none');
+            document.getElementById('sync-code-input').value = '';
+            updateSyncUI(currentSyncStatus());
+            syncModal.show();
+        }
+
+        async function cloudCreateCode() {
+            if (!window.__cloud) return;
+            await window.__cloud.createCode();
+            updateSyncUI(currentSyncStatus());
+        }
+
+        async function cloudConnect() {
+            const input = document.getElementById('sync-code-input');
+            const err = document.getElementById('sync-error');
+            err.classList.add('d-none');
+            if (!window.__cloud) return;
+            const res = await window.__cloud.connect(input.value);
+            if (res && res.ok) {
+                input.value = '';
+                updateSyncUI(currentSyncStatus());
+            } else {
+                err.textContent = res && res.error === 'not_found'
+                    ? 'Kod ne postoji.'
+                    : 'Neuspešno povezivanje. Proveri kod i internet.';
+                err.classList.remove('d-none');
+            }
+        }
+
+        function cloudDisconnect() {
+            if (window.__cloud) window.__cloud.disconnect();
+            updateSyncUI(currentSyncStatus());
+        }
+
+        function copySyncCode() {
+            const code = document.getElementById('sync-code-display').textContent;
+            const btn = document.getElementById('copy-code-btn');
+            navigator.clipboard.writeText(code).then(() => {
+                const original = btn.textContent;
+                btn.textContent = 'Kopirano!';
+                setTimeout(() => { btn.textContent = original; }, 1500);
+            });
+        }
 
         function extractText(listId) {
             const list = document.getElementById(listId);
@@ -497,15 +1017,54 @@
             navigator.clipboard.writeText(text).then(() => showPopup());
         }
 
-        function downloadList(listId) {
-            const text = extractText(listId).join('\n');
-            const blob = new Blob([text], { type: 'text/plain' });
+        function triggerDownload(content, filename, type) {
+            const blob = new Blob([content], { type });
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
-            a.download = 'lista_stvari.txt';
+            a.download = filename;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
+            URL.revokeObjectURL(a.href);
+        }
+
+        function sanitizeFilename(name) {
+            return name.replace(/[^\p{L}\p{N}_-]+/gu, '_') || 'lista';
+        }
+
+        function downloadCurrentList() {
+            const active = getActiveList();
+            const text = active.items.map(i => i.name).join('\n');
+            triggerDownload(text, `${sanitizeFilename(active.name)}.txt`, 'text/plain');
+        }
+
+        function downloadAllLists() {
+            triggerDownload(JSON.stringify(lists, null, 2), 'sve_liste_backup.json', 'application/json');
+        }
+
+        function restoreBackup(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = e => {
+                try {
+                    const parsed = JSON.parse(e.target.result);
+                    const valid = Array.isArray(parsed) && parsed.length > 0
+                        && parsed.every(l => l && typeof l.name === 'string');
+                    if (!valid) {
+                        alert('Neispravan format backup fajla.');
+                    } else {
+                        lists = parsed.map(normalizeList);
+                        activeListName = lists[0].name;
+                        saveLists();
+                        renderLists();
+                    }
+                } catch (err) {
+                    alert('Neispravan JSON fajl.');
+                }
+                event.target.value = '';
+            };
+            reader.readAsText(file);
         }
 
         function showPopup() {
@@ -526,6 +1085,115 @@
         }
 
         renderLists();
+    </script>
+
+    <!-- Firebase device sync (sync-code model). Replace firebaseConfig with your own project's config. -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+        import { getFirestore, doc, setDoc, getDoc, onSnapshot, serverTimestamp }
+            from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+        // ===== 1. PASTE YOUR FIREBASE CONFIG HERE =====
+        const firebaseConfig = {
+            apiKey: "AIzaSyBpzQJgA0la8m9J7ixUDGf43OxnRCogI9g",
+            authDomain: "travelapp-8b457.firebaseapp.com",
+            projectId: "travelapp-8b457",
+            storageBucket: "travelapp-8b457.firebasestorage.app",
+            messagingSenderId: "635667620374",
+            appId: "1:635667620374:web:aa2027d4d1ae131a554b37",
+            measurementId: "G-TTKJG9HDLX"
+        };
+        // ==============================================
+
+        const configured = firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_API_KEY";
+
+        let db = null;
+        let unsub = null;
+        let currentCode = null;
+        let pushTimer = null;
+
+        function status() {
+            return { available: configured, connected: !!currentCode, code: currentCode };
+        }
+        function notify() {
+            if (window.__onSyncStatus) window.__onSyncStatus(status());
+        }
+
+        function randomCode() {
+            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no confusable chars (0/O, 1/I)
+            const arr = new Uint32Array(8);
+            crypto.getRandomValues(arr);
+            let code = '';
+            for (let i = 0; i < 8; i++) code += chars[arr[i] % chars.length];
+            return code;
+        }
+
+        function subscribe(code) {
+            if (unsub) unsub();
+            unsub = onSnapshot(doc(db, 'syncs', code), snap => {
+                if (snap.metadata.hasPendingWrites) return; // ignore our own local write echo
+                const data = snap.data();
+                if (data && Array.isArray(data.lists) && window.__applyRemoteLists) {
+                    window.__applyRemoteLists(data.lists);
+                }
+            }, err => console.error('Sync listener error:', err));
+            currentCode = code;
+            localStorage.setItem('syncCode', code);
+            notify();
+        }
+
+        window.__cloud = {
+            getStatus: status,
+            async createCode() {
+                if (!configured) return null;
+                const code = randomCode();
+                const lists = (window.__getLocalLists && window.__getLocalLists()) || [];
+                await setDoc(doc(db, 'syncs', code), { lists, updatedAt: serverTimestamp() });
+                subscribe(code);
+                return code;
+            },
+            async connect(codeRaw) {
+                if (!configured) return { ok: false, error: 'not_configured' };
+                const code = (codeRaw || '').trim().toUpperCase();
+                if (!code) return { ok: false, error: 'empty' };
+                try {
+                    const ref = doc(db, 'syncs', code);
+                    const snap = await getDoc(ref);
+                    if (!snap.exists()) return { ok: false, error: 'not_found' };
+                    subscribe(code);
+                    const data = snap.data();
+                    if (data && Array.isArray(data.lists) && window.__applyRemoteLists) {
+                        window.__applyRemoteLists(data.lists);
+                    }
+                    return { ok: true };
+                } catch (e) {
+                    console.error('Sync connect error:', e);
+                    return { ok: false, error: 'network' };
+                }
+            },
+            disconnect() {
+                if (unsub) { unsub(); unsub = null; }
+                currentCode = null;
+                localStorage.removeItem('syncCode');
+                notify();
+            },
+            push(lists) {
+                if (!configured || !currentCode) return;
+                clearTimeout(pushTimer);
+                pushTimer = setTimeout(() => {
+                    setDoc(doc(db, 'syncs', currentCode), { lists, updatedAt: serverTimestamp() })
+                        .catch(e => console.error('Sync push error:', e));
+                }, 500);
+            }
+        };
+
+        if (configured) {
+            const app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            const saved = localStorage.getItem('syncCode');
+            if (saved) subscribe(saved);
+        }
+        notify();
     </script>
 </body>
 
