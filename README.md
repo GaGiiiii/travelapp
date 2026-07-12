@@ -28,30 +28,7 @@ Sync is off until a Firebase project is configured. It uses a **sync-code** mode
 
 1. Create a free Firebase project at <https://console.firebase.google.com> and register a **Web** app.
 2. Paste the generated `firebaseConfig` into the marked block near the bottom of `index.html`.
-3. In the Firebase console, create a **Cloud Firestore** database and publish these rules:
-
-   ```
-   rules_version = '2';
-   service cloud.firestore {
-     match /databases/{database}/documents {
-       match /syncs/{code} {
-         allow read: if code.matches('[A-Z2-9]{8}');
-         allow write: if code.matches('[A-Z2-9]{8}')
-                      && request.resource.data.lists is list
-                      && request.resource.data.size() < 100;
-       }
-       // Shared with the Receipt Scanner app (see note below).
-       match /receiptcatalogs/{code} {
-         allow read: if code.matches('[A-Z2-9]{8}');
-         allow write: if code.matches('[A-Z2-9]{8}')
-                      && request.resource.data.catalog is list
-                      && request.resource.data.size() < 100;
-       }
-     }
-   }
-   ```
-
-   > **Shared Firebase project.** This same Firebase project (`travelapp-8b457`) is reused by the sibling [Receipt Scanner](https://github.com/GaGiiiii/receiptscanner) app, which stores its catalog in a separate `receiptcatalogs` collection. The `receiptcatalogs` rule above is what keeps that app's sync working — keep both `match` blocks whenever you edit these rules, or one of the two apps breaks.
+3. In the Firebase console, create a **Cloud Firestore** database and add security rules that restrict reads/writes to your sync-code documents (e.g. only allow access to documents whose id is a valid 8-character code). Never leave the database in test/open mode.
 
 4. Open the app, click the **cloud** button → **Napravi kod** on one device, then enter that code on another to pair them. Edits then sync both ways in real time.
 

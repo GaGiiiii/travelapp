@@ -345,6 +345,9 @@ function updateSyncUI(st) {
     unavail.classList.add('d-none');
 
     if (!st || !st.available) {
+        unavail.textContent = st && st.reason === 'not_loaded'
+            ? 'Sinhronizacija se nije učitala (proveri internet / otvori preko http servera).'
+            : 'Sinhronizacija trenutno nije dostupna.';
         unavail.classList.remove('d-none');
         updateSyncButton(false);
         return;
