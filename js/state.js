@@ -1,5 +1,6 @@
 // Application state: the list data model, persistence, and the sync bridge.
-// A "list" is { name, items: [{ name, priority }], rightItems: [name], customOrder: [name] }.
+// A "list" is { name, items: [{ name, priority, category }], categories: [name],
+// rightItems: [name], customOrder: [name] }.
 // This file owns `lists`, `activeListName`, and `sortMode`; the UI layer (app.js) reads them.
 
 const defaultItems = [
@@ -37,21 +38,31 @@ const defaultItems = [
 
 const DEFAULT_PRIORITY = 'P2';
 const PRIORITY_ORDER = ['P1', 'P2', 'P3'];
+const DEFAULT_CATEGORY = 'Ostalo';
 const PRESET_LISTS = ['Bazen', 'Teretana', 'Akvapark', 'More', 'Rafting'];
 
 // Normalize any stored value (legacy plain strings or {name, priority}) into an object.
 function normalizeItem(item) {
-    if (typeof item === 'string') return { name: item, priority: DEFAULT_PRIORITY };
+    if (typeof item === 'string') return { name: item, priority: DEFAULT_PRIORITY, category: DEFAULT_CATEGORY };
     return {
         name: item.name,
-        priority: PRIORITY_ORDER.includes(item.priority) ? item.priority : DEFAULT_PRIORITY
+        priority: PRIORITY_ORDER.includes(item.priority) ? item.priority : DEFAULT_PRIORITY,
+        category: (typeof item.category === 'string' && item.category.trim()) ? item.category : DEFAULT_CATEGORY
     };
 }
 
 function normalizeList(l) {
+    const items = Array.isArray(l.items) ? l.items.map(normalizeItem) : [];
+    let categories = Array.isArray(l.categories)
+        ? l.categories.filter(c => typeof c === 'string' && c.trim())
+        : [];
+    // Every category an item references must exist (preserve any explicit order first).
+    items.forEach(it => { if (!categories.includes(it.category)) categories.push(it.category); });
+    if (categories.length === 0) categories = [DEFAULT_CATEGORY];
     return {
         name: l.name,
-        items: Array.isArray(l.items) ? l.items.map(normalizeItem) : [],
+        items,
+        categories,
         rightItems: Array.isArray(l.rightItems) ? l.rightItems : [],
         customOrder: Array.isArray(l.customOrder) ? l.customOrder : []
     };
@@ -67,14 +78,15 @@ if (storedLists) {
     const legacyRight = JSON.parse(localStorage.getItem('rightItems') || '[]');
     const defaultListItems = legacyItems.length
         ? legacyItems
-        : defaultItems.map(name => ({ name, priority: DEFAULT_PRIORITY }));
-    lists = [{ name: 'Podrazumevano', items: defaultListItems, rightItems: legacyRight }];
-    PRESET_LISTS.forEach(name => lists.push({ name, items: [], rightItems: [] }));
+        : defaultItems.map(name => ({ name, priority: DEFAULT_PRIORITY, category: DEFAULT_CATEGORY }));
+    const raw = [{ name: 'Podrazumevano', items: defaultListItems, rightItems: legacyRight }];
+    PRESET_LISTS.forEach(name => raw.push({ name, items: [], rightItems: [] }));
+    lists = raw.map(normalizeList);
     localStorage.removeItem('items');
     localStorage.removeItem('rightItems');
 }
 if (lists.length === 0) {
-    lists = [{ name: 'Podrazumevano', items: [], rightItems: [] }];
+    lists = [normalizeList({ name: 'Podrazumevano', items: [] })];
 }
 
 let activeListName = localStorage.getItem('activeList');
@@ -102,7 +114,7 @@ window.__getLocalLists = () => lists;
 window.__applyRemoteLists = (remoteLists) => {
     if (!Array.isArray(remoteLists)) return;
     lists = remoteLists.map(normalizeList);
-    if (lists.length === 0) lists = [{ name: 'Podrazumevano', items: [], rightItems: [] }];
+    if (lists.length === 0) lists = [normalizeList({ name: 'Podrazumevano', items: [] })];
     if (!lists.some(l => l.name === activeListName)) activeListName = lists[0].name;
     persistLocal();
     renderLists();
@@ -111,22 +123,28 @@ window.__applyRemoteLists = (remoteLists) => {
 saveLists();
 
 let sortMode = localStorage.getItem('sortMode') || 'default';
+if (!['default', 'az', 'priority', 'custom'].includes(sortMode)) sortMode = 'default';
 
-// Returns the active list's items in the order dictated by the current sort mode.
-function getDisplayItems() {
+// The display order is ALWAYS the persisted manual order (customOrder). Choosing a sort
+// (see applySort in app.js) rewrites customOrder; dragging edits it. So sorting is a
+// one-off action, and a manual drag never changes the selected sort label — the arrangement
+// simply persists until the user re-applies a sort (Reset) or picks another one.
+function orderComparator() {
+    const order = getActiveList().customOrder || [];
+    const rank = name => {
+        const i = order.indexOf(name);
+        return i === -1 ? Infinity : i; // unranked (e.g. newly added) items go to the end
+    };
+    return (a, b) => rank(a.name) - rank(b.name);
+}
+
+// Returns the active list's items grouped by category (in the list's category order),
+// each group internally ordered by the saved order.
+function getDisplayGroups() {
     const active = getActiveList();
-    const copy = active.items.slice();
-    if (sortMode === 'az') {
-        copy.sort((a, b) => a.name.localeCompare(b.name));
-    } else if (sortMode === 'priority') {
-        copy.sort((a, b) => PRIORITY_ORDER.indexOf(a.priority) - PRIORITY_ORDER.indexOf(b.priority));
-    } else if (sortMode === 'custom') {
-        const order = active.customOrder || [];
-        const rank = name => {
-            const i = order.indexOf(name);
-            return i === -1 ? Infinity : i; // unranked items keep insertion order at the end
-        };
-        copy.sort((a, b) => rank(a.name) - rank(b.name));
-    }
-    return copy;
+    const cmp = orderComparator();
+    return active.categories.map(category => ({
+        category,
+        items: active.items.filter(it => it.category === category).sort(cmp)
+    }));
 }

@@ -116,6 +116,38 @@ body {
     border: 1px solid rgba(0, 0, 0, 0.125);
 }
 
+/* Category grouping */
+.cat-block {
+    margin-bottom: 6px;
+}
+
+.cat-header {
+    margin: 6px 2px 6px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid rgba(128, 128, 128, 0.3);
+}
+
+.cat-title {
+    font-weight: 700;
+    font-size: 0.95rem;
+    letter-spacing: 0.02em;
+}
+
+.cat-list {
+    min-height: 14px;
+    /* keep empty categories droppable */
+}
+
+.cat-drag {
+    margin-right: 0;
+}
+
+/* Icon controls on rows/headers reuse .copy-btn theming; trim the default gap */
+.cat-header .copy-btn,
+.item-row .copy-btn {
+    margin-left: 0;
+}
+
 #copy-popup {
     position: fixed;
     top: 20px;

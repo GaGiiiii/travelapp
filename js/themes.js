@@ -11,7 +11,7 @@ const themes = [
               .delete-btn:hover { color: #81a1c1; }
               .upload-btn:hover { color: #81a1c1; }
               .header-title { color: #81a1c1; text-shadow: 1px 1px 3px #000; }
-              .section-title { color: #88c0d0; }
+              .section-title, .cat-title { color: #88c0d0; }
               .card { background-color: #3b4252; border: none; }
               .list-group-item { background-color: #434c5e; color: #d8dee9; }
               .list-group-item:hover { background-color: #4c566a; }
@@ -36,7 +36,7 @@ const themes = [
                 .delete-btn:hover { color: #61afef; }
                 .upload-btn:hover { color: #61afef; }
               .header-title { color: #61afef; text-shadow: 1px 1px 3px #000; }
-              .section-title { color: #e06c75; }
+              .section-title, .cat-title { color: #e06c75; }
               .card { background-color: #3a3f4b; border: none; }
               .list-group-item { background-color: #4b5263; color: #abb2bf; }
               .list-group-item:hover { background-color: #5c6370; }
@@ -61,7 +61,7 @@ const themes = [
                 .delete-btn:hover { color: #1976d2; }
                 .upload-btn:hover { color: #1976d2; }
               .header-title { color: #0d47a1; text-shadow: 1px 1px 2px #fff; }
-              .section-title { color: #1565c0; }
+              .section-title, .cat-title { color: #1565c0; }
               .list-group-item:hover { background-color: #e0f7fa; }
               .btn-primary { background-color: #1976d2; border: none; }
               .btn-primary:hover { background-color: #004ba0; }
@@ -82,7 +82,7 @@ const themes = [
                 .delete-btn:hover { color: #8b5e3c; }
                 .upload-btn:hover { color: #8b5e3c; }
               .header-title { color: #6b4226; text-shadow: 1px 1px 2px #fff0e0; }
-              .section-title { color: #8b5e3c; }
+              .section-title, .cat-title { color: #8b5e3c; }
               .card { background-color: #fdf6ec; border: none; }
               .list-group-item { background-color: #fbead1; color: #4d2e1f; }
               .list-group-item:hover { background-color: #f2dcc2; }

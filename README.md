@@ -4,11 +4,13 @@ A simple, single-file travel packing-list web app. Vanilla JavaScript + Bootstra
 
 ## Features
 
-- **Multiple lists** — organize by category (Bazen, Teretana, Akvapark, More, Rafting, …) with tabs to switch, plus create / rename / delete.
-- **Two-panel workflow** per list — *PONESI* (to pack) and *VRATI KUĆI* (to bring back); tap an item to move it between them.
+- **Multiple lists** — separate packing lists (Bazen, Teretana, Akvapark, More, Rafting, …) with tabs to switch, plus create / rename / delete.
+- **Subcategories** — each list groups its items into user-managed categories (add / rename / delete). Drag a category header to reorder categories.
+- **Rename & recategorize items** — rename any item, and move it between categories via a picker or by dragging it into another category's section.
+- **Two-panel workflow** per list — *PONESI* (to pack) and *VRATI KUĆI* (to bring back), both grouped under the same category headers as the main list; tap an item to move it between them.
 - **Priorities** — mark each item P1 / P2 / P3 via a picker.
-- **Sorting** — Default (date added), A-Z, Priority, or **Custom** drag-and-drop order (works on both mouse and touch). The chosen mode is remembered.
-- **Per-item delete confirmation** so nothing is removed by accident.
+- **Sorting** — Default (date added), A-Z, Priority (priority then A-Z), and Custom (fully manual), applied within each category. Sorting is an action that arranges items; after that you can **drag items freely and the chosen mode stays selected** — the manual arrangement persists until you press **Reset** (re-applies the current sort). Works on mouse and touch.
+- **Everything via styled modals** — rename, delete confirmations, category picker, and alerts all use the app's own modals (no native browser dialogs).
 - **Import / export**
   - Download a single list as a `.txt` file.
   - Download **all lists** as a `.json` backup, and restore it later.
@@ -19,7 +21,7 @@ A simple, single-file travel packing-list web app. Vanilla JavaScript + Bootstra
 ## Data & storage
 
 - Lists persist in the browser's `localStorage`, so the app works fully offline.
-- Data model: an array of lists, each `{ name, items: [{ name, priority }], rightItems: [...], customOrder: [...] }`.
+- Data model: an array of lists, each `{ name, items: [{ name, priority, category }], categories: [...], rightItems: [...], customOrder: [...] }`. Items, `rightItems`, and `customOrder` are keyed by item name (renaming propagates to all three).
 - Legacy single-list data is migrated automatically on first load.
 
 ## Multi-device sync (optional)

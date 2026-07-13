@@ -1,5 +1,5 @@
 // UI layer: DOM wiring, rendering, and all user actions.
-// Depends on js/state.js (lists, activeListName, sortMode, getActiveList, getDisplayItems, saveLists, ...).
+// Depends on js/state.js (lists, activeListName, sortMode, getActiveList, getDisplayGroups, saveLists, ...).
 
 // ----- DOM references & modal instances -----
 const uploadModalElement = document.getElementById('uploadModal');
@@ -9,7 +9,19 @@ const priorityModalElement = document.getElementById('priorityModal');
 const listNameModalElement = document.getElementById('listNameModal');
 const deleteListModalElement = document.getElementById('deleteListModal');
 const syncModalElement = document.getElementById('syncModal');
+const textInputModalElement = document.getElementById('textInputModal');
+const confirmModalElement = document.getElementById('confirmModal');
+const categoryPickerModalElement = document.getElementById('categoryPickerModal');
+const alertModalElement = document.getElementById('alertModal');
 const syncModal = new bootstrap.Modal(syncModalElement);
+const textInputModal = new bootstrap.Modal(textInputModalElement);
+const confirmModal = new bootstrap.Modal(confirmModalElement);
+const categoryPickerModal = new bootstrap.Modal(categoryPickerModalElement);
+const alertModal = new bootstrap.Modal(alertModalElement);
+function openAlert(message) {
+    document.getElementById('alert-message').textContent = message;
+    alertModal.show();
+}
 const uploadModal = new bootstrap.Modal(uploadModalElement);
 const deleteModal = new bootstrap.Modal(deleteModalElement);
 const deleteItemModal = new bootstrap.Modal(deleteItemModalElement);
@@ -34,12 +46,47 @@ const localStorageInfo = document.getElementById('localstorage-info');
 const sortSelect = document.getElementById('sort-select');
 
 // ----- Sort selector -----
+// Choosing a sort applies it once (writes the order); the Reset button re-applies it.
 sortSelect.value = sortMode;
-sortSelect.onchange = () => {
-    sortMode = sortSelect.value;
-    localStorage.setItem('sortMode', sortMode);
+sortSelect.onchange = () => applySort(sortSelect.value);
+
+// Apply a sort criterion to the active list: recompute the saved order (per category,
+// then flattened). Rendering always reads this order, so the arrangement then persists
+// through manual drags until a sort is applied again.
+function applySort(mode) {
+    const active = getActiveList();
+    sortMode = mode;
+    sortSelect.value = mode;
+    localStorage.setItem('sortMode', mode);
+    // 'custom' is a fully manual mode: selecting it (or Reset) leaves the current
+    // order untouched — the user arranges everything by dragging.
+    if (mode !== 'custom') {
+        const order = [];
+        active.categories.forEach(cat => {
+            const inCat = active.items.filter(it => it.category === cat);
+            inCat.sort((a, b) => {
+                if (mode === 'az') return a.name.localeCompare(b.name);
+                if (mode === 'priority') {
+                    const p = PRIORITY_ORDER.indexOf(a.priority) - PRIORITY_ORDER.indexOf(b.priority);
+                    return p !== 0 ? p : a.name.localeCompare(b.name);
+                }
+                return 0; // 'default' → keep current insertion (items-array) order
+            });
+            inCat.forEach(it => order.push(it.name));
+        });
+        active.customOrder = order;
+    }
+    saveLists();
     renderLists();
-};
+}
+
+// Seed the order for a list that has never been arranged, so the stored sort label is honored.
+function ensureOrder() {
+    const active = getActiveList();
+    if ((!active.customOrder || active.customOrder.length === 0) && active.items.length) {
+        applySort(sortMode);
+    }
+}
 
 // ----- Rendering -----
 function renderTabs() {
@@ -61,6 +108,7 @@ function renderTabs() {
 
 function switchList(name) {
     activeListName = name;
+    ensureOrder();
     saveLists();
     renderLists();
 }
@@ -71,123 +119,351 @@ function priorityBadgeClass(priority) {
     return 'bg-secondary';
 }
 
-let sortableInstance = null;
+let sortableInstances = [];
+
+// Small clickable icon control (pen, trash, folder, …). Reuses .copy-btn theming.
+function iconCtrl(iconClass, title, onClick, extraClass) {
+    const b = document.createElement('span');
+    b.className = 'copy-btn ' + (extraClass || '');
+    b.title = title;
+    b.innerHTML = `<i class="fas ${iconClass}"></i>`;
+    b.onclick = (e) => { e.stopPropagation(); onClick(e); };
+    return b;
+}
+
+// A category header. In the LISTA STVARI panel it carries a drag handle + rename/delete.
+function categoryHeader(category, manage) {
+    const h = document.createElement('div');
+    h.className = 'cat-header d-flex justify-content-between align-items-center';
+
+    const left = document.createElement('span');
+    left.className = 'd-flex align-items-center gap-2';
+    if (manage) {
+        const grip = document.createElement('span');
+        grip.className = 'drag-handle cat-drag';
+        grip.title = 'Prevuci da preurediš kategorije';
+        grip.innerHTML = '<i class="fas fa-grip-vertical"></i>';
+        left.appendChild(grip);
+    }
+    const title = document.createElement('span');
+    title.className = 'cat-title';
+    title.textContent = category;
+    left.appendChild(title);
+    h.appendChild(left);
+
+    if (manage) {
+        const ctrls = document.createElement('span');
+        ctrls.className = 'd-flex align-items-center gap-2';
+        ctrls.append(
+            iconCtrl('fa-pen', 'Preimenuj kategoriju', () => openRenameCategory(category)),
+            iconCtrl('fa-trash', 'Obriši kategoriju', () => openDeleteCategory(category), 'text-danger')
+        );
+        h.appendChild(ctrls);
+    }
+    return h;
+}
+
+// One row in the LISTA STVARI (manage) panel: handle, name, category, priority, delete.
+function renderManageRow(item, active) {
+    const li = document.createElement('li');
+    li.className = 'list-group-item item-row d-flex justify-content-between align-items-center text-start';
+    li.dataset.name = item.name;
+
+    const left = document.createElement('span');
+    left.className = 'd-flex align-items-center gap-2';
+    const handle = document.createElement('span');
+    handle.className = 'drag-handle';
+    handle.innerHTML = '<i class="fas fa-grip-vertical"></i>';
+    const name = document.createElement('span');
+    name.className = 'item-name';
+    name.textContent = item.name;
+    name.style.cursor = 'pointer';
+    name.title = 'Klikni da preimenuješ';
+    name.onclick = () => openRenameItem(item.name);
+    left.append(handle, name);
+
+    const controls = document.createElement('span');
+    controls.className = 'd-flex align-items-center gap-2';
+
+    const renameBtn = iconCtrl('fa-pen', 'Preimenuj stvar', () => openRenameItem(item.name));
+    const catBtn = iconCtrl('fa-folder', 'Premesti u kategoriju', () => openCategoryPicker(item.name));
+
+    const priorityBadge = document.createElement('span');
+    priorityBadge.className = `badge rounded-pill ${priorityBadgeClass(item.priority)}`;
+    priorityBadge.style.cursor = 'pointer';
+    priorityBadge.title = 'Klikni da izabereš prioritet';
+    priorityBadge.textContent = item.priority;
+    priorityBadge.onclick = (e) => {
+        e.stopPropagation();
+        pendingPriorityName = item.name;
+        priorityModal.show();
+    };
+
+    const delBtn = document.createElement('span');
+    delBtn.className = 'badge bg-danger rounded-pill';
+    delBtn.style.cursor = 'pointer';
+    delBtn.textContent = 'X';
+    delBtn.onclick = (e) => {
+        e.stopPropagation();
+        pendingDeleteName = item.name;
+        deleteItemNameEl.textContent = item.name;
+        deleteItemModal.show();
+    };
+
+    controls.append(renameBtn, catBtn, priorityBadge, delBtn);
+    li.append(left, controls);
+    return li;
+}
 
 function renderLists() {
     renderTabs();
     const active = getActiveList();
     activeListNameEl.textContent = active.name;
-    const isCustom = sortMode === 'custom';
 
     leftList.innerHTML = '';
     rightList.innerHTML = '';
     allItemsList.innerHTML = '';
+    sortableInstances.forEach(s => s.destroy());
+    sortableInstances = [];
 
-    getDisplayItems().forEach(item => {
-        // PONESI (left) — tap to mark an item as returned home.
-        const leftLi = document.createElement('li');
-        leftLi.textContent = item.name;
-        leftLi.className = 'list-group-item';
-        if (active.rightItems.includes(item.name)) leftLi.classList.add('text-decoration-line-through', 'text-muted');
-        leftLi.onclick = () => {
-            if (!active.rightItems.includes(item.name)) {
-                active.rightItems.push(item.name);
-                saveLists();
-                renderLists();
-            }
-        };
-        leftList.appendChild(leftLi);
+    getDisplayGroups().forEach(({ category, items }) => {
+        // ---- LISTA STVARI (manage) — every category shown, even empty ones (drop targets) ----
+        const block = document.createElement('div');
+        block.className = 'cat-block';
+        block.dataset.category = category;
+        block.appendChild(categoryHeader(category, true));
+        const manageUl = document.createElement('ul');
+        manageUl.className = 'list-group cat-list mb-3';
+        manageUl.dataset.category = category;
+        items.forEach(item => manageUl.appendChild(renderManageRow(item, active)));
+        block.appendChild(manageUl);
+        allItemsList.appendChild(block);
 
-        // VRATI KUĆI (right) — items marked as returned; tap or X to unmark.
-        if (active.rightItems.includes(item.name)) {
-            const rightLi = document.createElement('li');
-            rightLi.className = 'list-group-item d-flex justify-content-between align-items-center';
-            const span = document.createElement('span');
-            span.textContent = item.name;
-            span.onclick = () => {
-                active.rightItems = active.rightItems.filter(i => i !== item.name);
-                saveLists();
-                renderLists();
-            };
-            const removeBtn = document.createElement('span');
-            removeBtn.className = 'badge bg-danger rounded-pill';
-            removeBtn.textContent = 'X';
-            removeBtn.onclick = () => {
-                active.rightItems = active.rightItems.filter(i => i !== item.name);
-                saveLists();
-                renderLists();
-            };
-            rightLi.append(span, removeBtn);
-            rightList.appendChild(rightLi);
+        // ---- PONESI (left) — all items; strike-through when returned; tap to mark returned ----
+        if (items.length) {
+            leftList.appendChild(categoryHeader(category, false));
+            const leftUl = document.createElement('ul');
+            leftUl.className = 'list-group mb-3';
+            items.forEach(item => {
+                const li = document.createElement('li');
+                li.className = 'list-group-item item-row';
+                li.dataset.name = item.name;
+                const span = document.createElement('span');
+                span.className = 'item-name';
+                span.textContent = item.name;
+                li.appendChild(span);
+                if (active.rightItems.includes(item.name)) li.classList.add('text-decoration-line-through', 'text-muted');
+                li.onclick = () => {
+                    if (!active.rightItems.includes(item.name)) {
+                        active.rightItems.push(item.name);
+                        saveLists();
+                        renderLists();
+                    }
+                };
+                leftUl.appendChild(li);
+            });
+            leftList.appendChild(leftUl);
         }
 
-        // LISTA STVARI (all items) — priority badge, delete, and (in custom mode) a drag handle.
-        const allLi = document.createElement('li');
-        allLi.className = 'list-group-item d-flex justify-content-between align-items-center text-start';
-        allLi.dataset.name = item.name;
-
-        const left = document.createElement('span');
-        left.className = 'd-flex align-items-center';
-        if (isCustom) {
-            const handle = document.createElement('span');
-            handle.className = 'drag-handle';
-            handle.innerHTML = '<i class="fas fa-grip-vertical"></i>';
-            left.appendChild(handle);
+        // ---- VRATI KUĆI (right) — only returned items; tap or X to unmark ----
+        const returned = items.filter(it => active.rightItems.includes(it.name));
+        if (returned.length) {
+            rightList.appendChild(categoryHeader(category, false));
+            const rightUl = document.createElement('ul');
+            rightUl.className = 'list-group mb-3';
+            returned.forEach(item => {
+                const li = document.createElement('li');
+                li.className = 'list-group-item item-row d-flex justify-content-between align-items-center';
+                li.dataset.name = item.name;
+                const span = document.createElement('span');
+                span.className = 'item-name';
+                span.textContent = item.name;
+                const unmark = () => {
+                    active.rightItems = active.rightItems.filter(i => i !== item.name);
+                    saveLists();
+                    renderLists();
+                };
+                span.onclick = unmark;
+                const removeBtn = document.createElement('span');
+                removeBtn.className = 'badge bg-danger rounded-pill';
+                removeBtn.textContent = 'X';
+                removeBtn.onclick = unmark;
+                li.append(span, removeBtn);
+                rightUl.appendChild(li);
+            });
+            rightList.appendChild(rightUl);
         }
-        const itemText = document.createElement('span');
-        itemText.textContent = item.name;
-        left.appendChild(itemText);
-
-        const controls = document.createElement('span');
-        controls.className = 'd-flex align-items-center gap-2';
-
-        const priorityBadge = document.createElement('span');
-        priorityBadge.className = `badge rounded-pill ${priorityBadgeClass(item.priority)}`;
-        priorityBadge.style.cursor = 'pointer';
-        priorityBadge.title = 'Klikni da izabereš prioritet';
-        priorityBadge.textContent = item.priority;
-        priorityBadge.onclick = (e) => {
-            e.stopPropagation();
-            pendingPriorityName = item.name;
-            priorityModal.show();
-        };
-
-        const delBtn = document.createElement('span');
-        delBtn.className = 'badge bg-danger rounded-pill';
-        delBtn.style.cursor = 'pointer';
-        delBtn.textContent = 'X';
-        delBtn.onclick = (e) => {
-            e.stopPropagation();
-            pendingDeleteName = item.name;
-            deleteItemNameEl.textContent = item.name;
-            deleteItemModal.show();
-        };
-
-        controls.append(priorityBadge, delBtn);
-        allLi.append(left, controls);
-        allItemsList.appendChild(allLi);
     });
 
-    // Enable drag-and-drop reordering only in custom mode.
-    if (sortableInstance) {
-        sortableInstance.destroy();
-        sortableInstance = null;
-    }
-    if (isCustom && window.Sortable) {
-        sortableInstance = window.Sortable.create(allItemsList, {
-            handle: '.drag-handle',
+    // Two levels of drag in LISTA STVARI: reorder categories (handle on the header),
+    // and reorder/move items within & between categories. Both work in any sort mode and
+    // just persist the new arrangement — the selected sort label is left unchanged.
+    if (window.Sortable) {
+        sortableInstances.push(window.Sortable.create(allItemsList, {
+            group: 'categories',
+            draggable: '.cat-block',
+            handle: '.cat-drag',
             animation: 150,
-            onEnd: () => {
-                const active = getActiveList();
-                active.customOrder = Array.from(allItemsList.children).map(li => li.dataset.name);
-                saveLists();
-                // defer so Sortable can finish its own event before we re-render/destroy it
-                setTimeout(renderLists, 0);
-            }
+            onEnd: commitCategoryOrder
+        }));
+        allItemsList.querySelectorAll('.cat-list').forEach(ul => {
+            sortableInstances.push(window.Sortable.create(ul, {
+                group: 'items',
+                handle: '.drag-handle',
+                animation: 150,
+                onEnd: commitItemOrder
+            }));
         });
     }
 
     updateLocalStorageInfo();
+}
+
+// Read the current DOM order across all category lists → update each item's category
+// and the saved order. Does NOT change the selected sort — the arrangement just persists.
+function commitItemOrder() {
+    const active = getActiveList();
+    const order = [];
+    allItemsList.querySelectorAll('.cat-list').forEach(ul => {
+        const cat = ul.dataset.category;
+        ul.querySelectorAll('li.item-row').forEach(li => {
+            const it = active.items.find(i => i.name === li.dataset.name);
+            if (it) it.category = cat;
+            order.push(li.dataset.name);
+        });
+    });
+    active.customOrder = order;
+    saveLists();
+    setTimeout(renderLists, 0); // let Sortable finish before we destroy/rebuild
+}
+
+// Reorder the list's categories to match the dragged header order.
+function commitCategoryOrder() {
+    const active = getActiveList();
+    const order = Array.from(allItemsList.querySelectorAll('.cat-block')).map(b => b.dataset.category);
+    active.categories.forEach(c => { if (!order.includes(c)) order.push(c); });
+    active.categories = order;
+    saveLists();
+    setTimeout(renderLists, 0);
+}
+
+// ----- Generic styled modals (replace native prompt/confirm) -----
+// Text-input modal: onSave(value) returns an error string to show inline, or null on success.
+let textInputCallback = null;
+function openTextModal(title, value, onSave) {
+    document.getElementById('text-input-title').textContent = title;
+    const field = document.getElementById('text-input-field');
+    field.value = value || '';
+    document.getElementById('text-input-error').classList.add('d-none');
+    textInputCallback = onSave;
+    textInputModal.show();
+    setTimeout(() => { field.focus(); field.select(); }, 300);
+}
+function submitTextInput() {
+    const field = document.getElementById('text-input-field');
+    const err = document.getElementById('text-input-error');
+    const result = textInputCallback ? textInputCallback(field.value.trim()) : null;
+    if (result) { err.textContent = result; err.classList.remove('d-none'); return; }
+    textInputModal.hide();
+}
+
+// Confirm modal.
+let confirmCallback = null;
+function openConfirm(message, onConfirm) {
+    document.getElementById('confirm-message').textContent = message;
+    confirmCallback = onConfirm;
+    confirmModal.show();
+}
+function submitConfirm() {
+    const cb = confirmCallback;
+    confirmCallback = null;
+    confirmModal.hide();
+    if (cb) cb();
+}
+
+// ----- Rename item / category actions -----
+function openRenameItem(oldName) {
+    openTextModal('Preimenuj stvar', oldName, (val) => {
+        const active = getActiveList();
+        if (!val) return 'Naziv ne može biti prazan.';
+        if (val === oldName) return null;
+        if (active.items.some(i => i.name === val)) return 'Stvar sa tim nazivom već postoji.';
+        const item = active.items.find(i => i.name === oldName);
+        item.name = val;
+        active.rightItems = active.rightItems.map(n => n === oldName ? val : n);
+        active.customOrder = (active.customOrder || []).map(n => n === oldName ? val : n);
+        saveLists();
+        renderLists();
+        return null;
+    });
+}
+
+function addCategoryFromInput() {
+    const active = getActiveList();
+    const input = document.getElementById('new-category');
+    const name = input.value.trim();
+    if (name && !active.categories.includes(name)) {
+        active.categories.push(name);
+        saveLists();
+        renderLists();
+    }
+    input.value = '';
+}
+
+function openRenameCategory(oldName) {
+    openTextModal('Preimenuj kategoriju', oldName, (val) => {
+        const active = getActiveList();
+        if (!val) return 'Naziv ne može biti prazan.';
+        if (val === oldName) return null;
+        if (active.categories.includes(val)) return 'Kategorija sa tim nazivom već postoji.';
+        active.categories = active.categories.map(c => c === oldName ? val : c);
+        active.items.forEach(it => { if (it.category === oldName) it.category = val; });
+        saveLists();
+        renderLists();
+        return null;
+    });
+}
+
+function openDeleteCategory(name) {
+    const active = getActiveList();
+    const count = active.items.filter(it => it.category === name).length;
+    const msg = count
+        ? `Obriši kategoriju "${name}"? ${count} stvari će biti premešteno u drugu kategoriju.`
+        : `Obriši kategoriju "${name}"?`;
+    openConfirm(msg, () => {
+        const remaining = active.categories.filter(c => c !== name);
+        const fallback = remaining[0] || DEFAULT_CATEGORY;
+        active.categories = remaining.length ? remaining : [DEFAULT_CATEGORY];
+        active.items.forEach(it => { if (it.category === name) it.category = fallback; });
+        saveLists();
+        renderLists();
+    });
+}
+
+function openCategoryPicker(itemName) {
+    const active = getActiveList();
+    const item = active.items.find(i => i.name === itemName);
+    const body = document.getElementById('category-picker-body');
+    body.innerHTML = '';
+    active.categories.forEach(c => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn ' + (item && item.category === c ? 'btn-primary' : 'btn-secondary');
+        btn.textContent = c;
+        btn.onclick = () => { changeItemCategory(itemName, c); categoryPickerModal.hide(); };
+        body.appendChild(btn);
+    });
+    categoryPickerModal.show();
+}
+
+function changeItemCategory(name, newCategory) {
+    const active = getActiveList();
+    const it = active.items.find(i => i.name === name);
+    if (it) {
+        it.category = newCategory;
+        saveLists();
+        renderLists();
+    }
 }
 
 // ----- Modal helpers & centering -----
@@ -201,7 +477,7 @@ function openDeleteModal() {
     deleteModal.show();
 }
 
-const modals = [uploadModalElement, deleteModalElement, deleteItemModalElement, priorityModalElement, listNameModalElement, deleteListModalElement, syncModalElement];
+const modals = [uploadModalElement, deleteModalElement, deleteItemModalElement, priorityModalElement, listNameModalElement, deleteListModalElement, syncModalElement, textInputModalElement, confirmModalElement, categoryPickerModalElement, alertModalElement];
 
 modals.forEach(modal => {
     modal.addEventListener('show.bs.modal', () => {
@@ -243,9 +519,10 @@ function confirmDeleteItem() {
 
 function uploadItems() {
     const active = getActiveList();
+    const cat = active.categories[0] || DEFAULT_CATEGORY;
     const lines = textarea.value.split('\n').map(line => line.trim()).filter(Boolean);
     lines.forEach(line => {
-        if (!active.items.some(i => i.name === line)) active.items.push({ name: line, priority: DEFAULT_PRIORITY });
+        if (!active.items.some(i => i.name === line)) active.items.push({ name: line, priority: DEFAULT_PRIORITY, category: cat });
     });
     saveLists();
     renderLists();
@@ -265,7 +542,8 @@ addItemBtn.onclick = () => {
     const active = getActiveList();
     const value = newItemInput.value.trim();
     if (value && !active.items.some(i => i.name === value)) {
-        active.items.push({ name: value, priority: DEFAULT_PRIORITY });
+        const cat = active.categories[0] || DEFAULT_CATEGORY;
+        active.items.push({ name: value, priority: DEFAULT_PRIORITY, category: cat });
         saveLists();
         newItemInput.value = '';
         renderLists();
@@ -301,7 +579,7 @@ function saveListName() {
         return;
     }
     if (listNameMode === 'new') {
-        lists.push({ name, items: [], rightItems: [] });
+        lists.push(normalizeList({ name, items: [], rightItems: [] }));
         activeListName = name;
     } else if (listNameMode === 'rename') {
         getActiveList().name = name;
@@ -414,9 +692,19 @@ function copySyncCode() {
 }
 
 // ----- Copy / download / restore / misc utilities -----
-function extractText(listId) {
-    const list = document.getElementById(listId);
-    return Array.from(list.children).map(li => li.firstChild.textContent.trim()).filter(Boolean);
+// Walk a panel's grouped DOM in order, emitting a "[Category]" line before its items.
+function extractText(containerId) {
+    const container = document.getElementById(containerId);
+    const out = [];
+    container.querySelectorAll('.cat-header, .item-row').forEach(el => {
+        if (el.classList.contains('cat-header')) {
+            out.push(`[${el.querySelector('.cat-title').textContent.trim()}]`);
+        } else {
+            const n = el.querySelector('.item-name');
+            if (n) out.push(n.textContent.trim());
+        }
+    });
+    return out.filter(Boolean);
 }
 
 function copyList(listId) {
@@ -459,7 +747,7 @@ function restoreBackup(event) {
             const valid = Array.isArray(parsed) && parsed.length > 0
                 && parsed.every(l => l && typeof l.name === 'string');
             if (!valid) {
-                alert('Neispravan format backup fajla.');
+                openAlert('Neispravan format backup fajla.');
             } else {
                 lists = parsed.map(normalizeList);
                 activeListName = lists[0].name;
@@ -467,7 +755,7 @@ function restoreBackup(event) {
                 renderLists();
             }
         } catch (err) {
-            alert('Neispravan JSON fajl.');
+            openAlert('Neispravan JSON fajl.');
         }
         event.target.value = '';
     };
@@ -491,4 +779,5 @@ function updateLocalStorageInfo() {
     localStorageInfo.innerHTML = `<strong>Storage:</strong> ${usedKB} KB / 5 MB`;
 }
 
+ensureOrder();
 renderLists();

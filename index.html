@@ -43,7 +43,7 @@
                     <h5 class="section-title mb-3">PONESI
                         <button class="copy-btn" onclick="copyList('left-list')"><i class="fas fa-copy"></i></button>
                     </h5>
-                    <ul id="left-list" class="list-group"></ul>
+                    <div id="left-list"></div>
                 </div>
             </div>
             <div class="col-md-5 offset-md-2">
@@ -51,7 +51,7 @@
                     <h5 class="section-title mb-3">VRATI KUĆI
                         <button class="copy-btn" onclick="copyList('right-list')"><i class="fas fa-copy"></i></button>
                     </h5>
-                    <ul id="right-list" class="list-group"></ul>
+                    <div id="right-list"></div>
                 </div>
             </div>
         </div>
@@ -76,20 +76,27 @@
                         </button>
                         <input id="restore-input" type="file" accept="application/json,.json" class="d-none" onchange="restoreBackup(event)">
                     </h5>
-                    <div class="input-group mb-3">
+                    <div class="input-group mb-2">
                         <input id="new-item" type="text" class="form-control" placeholder="Dodaj stvar">
                         <button id="add-item" class="btn btn-primary">Dodaj</button>
                     </div>
-                    <div class="d-flex justify-content-end align-items-center mb-2">
-                        <label for="sort-select" class="sort-label me-2">Sortiraj:</label>
+                    <div class="input-group mb-3">
+                        <input id="new-category" type="text" class="form-control" placeholder="Nova kategorija">
+                        <button class="btn btn-primary" onclick="addCategoryFromInput()">Dodaj kategoriju</button>
+                    </div>
+                    <div class="d-flex justify-content-end align-items-center gap-2 mb-2">
+                        <label for="sort-select" class="sort-label">Sortiraj:</label>
                         <select id="sort-select" class="sort-select form-select form-select-sm" style="width:auto;">
                             <option value="default">Podrazumevano (datum)</option>
                             <option value="az">A-Z</option>
                             <option value="priority">Prioritet</option>
-                            <option value="custom">Prilagođeno (prevuci)</option>
+                            <option value="custom">Prilagođeno (ručno)</option>
                         </select>
+                        <button class="btn list-manage-btn" title="Ponovo sortiraj (reset)" onclick="applySort(sortMode)">
+                            <i class="fas fa-rotate"></i>
+                        </button>
                     </div>
-                    <ul id="all-items" class="list-group"></ul>
+                    <div id="all-items"></div>
                 </div>
             </div>
         </div>
@@ -151,6 +158,70 @@
                     <button type="button" class="btn btn-danger" onclick="confirmDeleteItem()">Obriši</button>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Odustani</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Generic Text Input Modal (rename item / category) -->
+    <div class="modal fade" id="textInputModal" tabindex="-1">
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold text-dark" id="text-input-title"></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input id="text-input-field" type="text" class="form-control" onkeydown="if(event.key==='Enter')submitTextInput()">
+                    <div id="text-input-error" class="text-danger small mt-2 d-none"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" onclick="submitTextInput()">Sačuvaj</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Odustani</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Generic Confirm Modal (delete category, …) -->
+    <div class="modal fade" id="confirmModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold text-dark" id="confirm-message"></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-danger" onclick="submitConfirm()">Obriši</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Odustani</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Generic Alert Modal (info / errors) -->
+    <div class="modal fade" id="alertModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold text-dark" id="alert-message"></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" data-bs-dismiss="modal">U redu</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Category Picker Modal (assign item to a category) -->
+    <div class="modal fade" id="categoryPickerModal" tabindex="-1">
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold text-dark">Premesti u kategoriju</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body d-flex flex-wrap justify-content-center gap-2" id="category-picker-body"></div>
             </div>
         </div>
     </div>
