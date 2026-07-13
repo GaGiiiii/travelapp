@@ -140,7 +140,7 @@ function categoryHeader(category, manage) {
     left.className = 'd-flex align-items-center gap-2';
     if (manage) {
         const grip = document.createElement('span');
-        grip.className = 'drag-handle cat-drag';
+        grip.className = 'drag-handle cat-drag copy-btn';
         grip.title = 'Prevuci da preurediš kategorije';
         grip.innerHTML = '<i class="fas fa-grip-vertical"></i>';
         left.appendChild(grip);
