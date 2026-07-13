@@ -185,7 +185,6 @@ function renderManageRow(item, active) {
     const controls = document.createElement('span');
     controls.className = 'd-flex align-items-center gap-2';
 
-    const renameBtn = iconCtrl('fa-pen', 'Preimenuj stvar', () => openRenameItem(item.name));
     const catBtn = iconCtrl('fa-folder', 'Premesti u kategoriju', () => openCategoryPicker(item.name));
 
     const priorityBadge = document.createElement('span');
@@ -210,7 +209,7 @@ function renderManageRow(item, active) {
         deleteItemModal.show();
     };
 
-    controls.append(renameBtn, catBtn, priorityBadge, delBtn);
+    controls.append(catBtn, priorityBadge, delBtn);
     li.append(left, controls);
     return li;
 }
