@@ -61,20 +61,24 @@
                 <div class="card mx-auto shadow-box p-3" style="max-width: 720px;">
                     <h5 class="section-title text-start mb-3">LISTA STVARI (<span id="active-list-name"></span>)
                         <button class="copy-btn" onclick="copyList('all-items')" title="Kopiraj listu"><i class="fas fa-copy"></i></button>
-                        <button class="download-btn" onclick="downloadCurrentList()" title="Preuzmi ovu listu (.txt)"><i
+                        <button class="download-btn" onclick="downloadCurrentList()" title="Preuzmi ovu listu (.json)"><i
                                 class="fas fa-download"></i></button>
                         <button class="download-btn" onclick="downloadAllLists()" title="Preuzmi sve liste (.json)"><i
                                 class="fas fa-file-zipper"></i></button>
                         <button class="upload-btn" onclick="openUploadModal()" title="Dodaj stvari iz teksta">
                             <i class="fas fa-upload"></i>
                         </button>
-                        <button class="upload-btn" onclick="document.getElementById('restore-input').click()" title="Učitaj backup (.json)">
+                        <button class="upload-btn" onclick="document.getElementById('import-list-input').click()" title="Uvezi listu (.json)">
                             <i class="fas fa-file-import"></i>
+                        </button>
+                        <button class="upload-btn" onclick="document.getElementById('restore-input').click()" title="Vrati backup — zameni sve liste (.json)">
+                            <i class="fas fa-database"></i>
                         </button>
                         <button class="delete-btn" onclick="openDeleteModal()" title="Isprazni ovu listu">
                             <i class="fas fa-trash"></i>
                         </button>
                         <input id="restore-input" type="file" accept="application/json,.json" class="d-none" onchange="restoreBackup(event)">
+                        <input id="import-list-input" type="file" accept="application/json,.json" class="d-none" onchange="importList(event)">
                     </h5>
                     <div class="input-group mb-2">
                         <input id="new-item" type="text" class="form-control" placeholder="Dodaj stvar">
@@ -191,7 +195,7 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-danger" onclick="submitConfirm()">Obriši</button>
+                    <button type="button" class="btn btn-danger" id="confirm-ok-btn" onclick="submitConfirm()">Obriši</button>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Odustani</button>
                 </div>
             </div>

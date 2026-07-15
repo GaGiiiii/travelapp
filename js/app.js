@@ -368,8 +368,9 @@ function submitTextInput() {
 
 // Confirm modal.
 let confirmCallback = null;
-function openConfirm(message, onConfirm) {
+function openConfirm(message, onConfirm, okLabel = 'Obriši') {
     document.getElementById('confirm-message').textContent = message;
+    document.getElementById('confirm-ok-btn').textContent = okLabel;
     confirmCallback = onConfirm;
     confirmModal.show();
 }
@@ -726,16 +727,57 @@ function sanitizeFilename(name) {
     return name.replace(/[^\p{L}\p{N}_-]+/gu, '_') || 'lista';
 }
 
+// Full-fidelity single-list export (name, categories, items with priority+category,
+// rightItems, customOrder) — so a re-import restores everything, not just item names.
 function downloadCurrentList() {
     const active = getActiveList();
-    const text = active.items.map(i => i.name).join('\n');
-    triggerDownload(text, `${sanitizeFilename(active.name)}.txt`, 'text/plain');
+    triggerDownload(JSON.stringify(active, null, 2), `${sanitizeFilename(active.name)}.json`, 'application/json');
 }
 
 function downloadAllLists() {
     triggerDownload(JSON.stringify(lists, null, 2), 'sve_liste_backup.json', 'application/json');
 }
 
+function uniqueListName(base) {
+    let name = base, i = 2;
+    while (lists.some(l => l.name === name)) name = `${base} (${i++})`;
+    return name;
+}
+
+// Import one or more lists from a JSON file (a single list object, or an array of them),
+// ADDING them alongside the current lists (never replacing). Duplicate names get a suffix.
+function importList(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+        try {
+            const parsed = JSON.parse(e.target.result);
+            const incoming = Array.isArray(parsed) ? parsed : [parsed];
+            const valid = incoming.length > 0 && incoming.every(l => l && typeof l.name === 'string');
+            if (!valid) {
+                openAlert('Neispravan format fajla za listu.');
+            } else {
+                let lastName = null;
+                incoming.forEach(l => {
+                    const norm = normalizeList(l);
+                    norm.name = uniqueListName(norm.name);
+                    lists.push(norm);
+                    lastName = norm.name;
+                });
+                if (lastName) activeListName = lastName;
+                saveLists();
+                renderLists();
+            }
+        } catch (err) {
+            openAlert('Neispravan JSON fajl.');
+        }
+        event.target.value = '';
+    };
+    reader.readAsText(file);
+}
+
+// Restore a full backup — REPLACES all lists (behind a confirmation).
 function restoreBackup(event) {
     const file = event.target.files[0];
     if (!file) return;
@@ -748,10 +790,12 @@ function restoreBackup(event) {
             if (!valid) {
                 openAlert('Neispravan format backup fajla.');
             } else {
-                lists = parsed.map(normalizeList);
-                activeListName = lists[0].name;
-                saveLists();
-                renderLists();
+                openConfirm('Ovo će zameniti SVE postojeće liste. Nastavi?', () => {
+                    lists = parsed.map(normalizeList);
+                    activeListName = lists[0].name;
+                    saveLists();
+                    renderLists();
+                }, 'Nastavi');
             }
         } catch (err) {
             openAlert('Neispravan JSON fajl.');

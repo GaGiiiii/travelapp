@@ -11,9 +11,10 @@ A simple, single-file travel packing-list web app. Vanilla JavaScript + Bootstra
 - **Priorities** — mark each item P1 / P2 / P3 via a picker.
 - **Sorting** — Default (date added), A-Z, Priority (priority then A-Z), and Custom (fully manual), applied within each category. Sorting is an action that arranges items; after that you can **drag items freely and the chosen mode stays selected** — the manual arrangement persists until you press **Reset** (re-applies the current sort). Works on mouse and touch.
 - **Everything via styled modals** — rename, delete confirmations, category picker, and alerts all use the app's own modals (no native browser dialogs).
-- **Import / export**
-  - Download a single list as a `.txt` file.
-  - Download **all lists** as a `.json` backup, and restore it later.
+- **Import / export** — full-fidelity JSON (items, priorities, categories, order, and packed/returned state are all preserved):
+  - **Export this list** (`.json`) / **Export all lists** (`.json` backup).
+  - **Import a list** (`.json`) — adds it (or several) alongside your current lists, auto-renaming name clashes.
+  - **Restore backup** (`.json`) — replaces all lists (behind a confirmation).
   - Paste multiple items at once from text.
 - **Themes** — cycle through several color themes (Nord, One Dark, Light, Sepia).
 - **Multi-device sync** — optional, via Firebase Firestore using a simple *sync code* (see below).
